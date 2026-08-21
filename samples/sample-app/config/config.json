@@ -1,0 +1,11 @@
+{
+  "service": {
+    "uploadUrl": "https://api.acme-service.com/v1/upload",
+    "cdn": "https://cdn.jsdelivr.net/npm/chart.js@4"
+  },
+  "integrations": {
+    "comment": "billingWebhook is defined but never referenced in code - config-only",
+    "billingWebhook": "https://hooks.billing-vendor.com/v2/events",
+    "legacyExportEndpoint": "https://export.old-partner.net/api/dump"
+  }
+}

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Network Footprint Report - {{PROJECT_NAME}}</title>
+<style>
+  :root {
+    --ink: #1f2933;
+    --muted: #52606d;
+    --line: #e4e7eb;
+    --bg: #f5f7fa;
+    --card: #ffffff;
+    --accent: #2b6cb0;
+    --accent-dark: #1a4971;
+    --out: #b45309;      /* outbound - amber */
+    --out-bg: #fef3c7;
+    --in: #1d7a5f;       /* inbound - teal/green */
+    --in-bg: #d1fae5;
+    --both: #6b46c1;     /* bidirectional - purple */
+    --both-bg: #ede9fe;
+    --none: #64748b;     /* no transfer - slate */
+    --none-bg: #eef2f6;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.55;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 24px 64px; }
+  header.report {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+    color: #fff;
+    padding: 40px 24px;
+    margin-bottom: 32px;
+  }
+  header.report .inner { max-width: 1100px; margin: 0 auto; }
+  header.report h1 { margin: 0 0 6px; font-size: 28px; font-weight: 650; }
+  header.report .sub { opacity: .9; font-size: 15px; }
+  header.report .meta { margin-top: 18px; font-size: 13px; opacity: .85; }
+  header.report .meta span { margin-right: 20px; white-space: nowrap; }
+
+  h2 { font-size: 20px; margin: 40px 0 14px; padding-bottom: 8px; border-bottom: 2px solid var(--line); }
+  h3 { font-size: 16px; margin: 26px 0 10px; }
+  p.note { color: var(--muted); font-size: 14px; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin: 8px 0 4px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .card .num { font-size: 26px; font-weight: 680; }
+  .card .lbl { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-top: 2px; }
+
+  .dirgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; }
+  .dirtile { border-radius: 10px; padding: 14px 16px; border: 1px solid var(--line); }
+  .dirtile .num { font-size: 24px; font-weight: 680; }
+  .dirtile .lbl { font-size: 13px; font-weight: 600; }
+  .dirtile.out  { background: var(--out-bg);  border-color: #fcd9a0; }
+  .dirtile.in   { background: var(--in-bg);   border-color: #a7f3d0; }
+  .dirtile.both { background: var(--both-bg); border-color: #ddd6fe; }
+  .dirtile.none { background: var(--none-bg); border-color: var(--line); }
+
+  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin: 12px 0 8px; font-size: 14px; }
+  thead th { background: #eef2f7; text-align: left; padding: 10px 12px; font-weight: 620; color: var(--muted); border-bottom: 1px solid var(--line); }
+  tbody td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  td .loc { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; color: var(--muted); }
+
+  .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 620; }
+  .dir-out  { background: var(--out-bg);  color: var(--out); }
+  .dir-in   { background: var(--in-bg);   color: var(--in); }
+  .dir-both { background: var(--both-bg); color: var(--both); }
+  .dir-none { background: var(--none-bg); color: var(--none); }
+
+  .usage { font-size: 12.5px; color: var(--muted); }
+
+  .detail { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 8px; padding: 14px 16px; margin: 12px 0; }
+  .detail h4 { margin: 0 0 6px; font-size: 15px; }
+  .detail p { margin: 4px 0; font-size: 14px; }
+  pre.code { background: #0f172a; color: #e2e8f0; padding: 12px 14px; border-radius: 8px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.5; margin: 8px 0 0; }
+
+  footer.report { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  .empty { color: var(--muted); font-style: italic; font-size: 14px; padding: 8px 0; }
+
+  @media print {
+    body { background: #fff; }
+    header.report { background: var(--accent-dark) !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .card, table, .detail, .dirtile { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<header class="report">
+  <div class="inner">
+    <h1>Network Footprint Report</h1>
+    <div class="sub">{{PROJECT_NAME}}</div>
+    <div class="meta">
+      <span><strong>Scanned:</strong> {{SCAN_DATE}}</span>
+      <span><strong>Scanner:</strong> v{{SCANNER_VERSION}}</span>
+      <span><strong>Duration:</strong> {{SCAN_DURATION}}</span>
+      <span><strong>Target:</strong> {{TARGET_PATH}}</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <p class="note">This report describes how data moves in and out of the codebase: the external endpoints it references, the direction data flows for each, and whether each is actively used. It reports facts and assigns no risk, severity, or compliance status.</p>
+
+  <h2>Overview</h2>
+  <div class="cards">
+    <div class="card"><div class="num">{{TOTAL_ENDPOINTS}}</div><div class="lbl">External endpoints</div></div>
+    <div class="card"><div class="num">{{TOTAL_DOMAINS}}</div><div class="lbl">Unique domains</div></div>
+    <div class="card"><div class="num">{{TOTAL_IPS}}</div><div class="lbl">IP addresses</div></div>
+    <div class="card"><div class="num">{{FILES_WITH_REFERENCES}}</div><div class="lbl">Files with references</div></div>
+  </div>
+
+  <h3>Data flow direction</h3>
+  <div class="dirgrid">
+    <div class="dirtile out"><div class="num">{{COUNT_OUT}}</div><div class="lbl">Outbound (OUT)</div></div>
+    <div class="dirtile in"><div class="num">{{COUNT_IN}}</div><div class="lbl">Inbound (IN)</div></div>
+    <div class="dirtile both"><div class="num">{{COUNT_BOTH}}</div><div class="lbl">Bidirectional (BOTH)</div></div>
+    <div class="dirtile none"><div class="num">{{COUNT_NONE}}</div><div class="lbl">No transfer (None)</div></div>
+    <div class="dirtile none"><div class="num">{{COUNT_UNKNOWN}}</div><div class="lbl">Unknown</div></div>
+  </div>
+
+  <h3>Usage</h3>
+  <div class="cards">
+    <div class="card"><div class="num">{{COUNT_ACTIVE}}</div><div class="lbl">Active in code</div></div>
+    <div class="card"><div class="num">{{COUNT_CONFIG_ONLY}}</div><div class="lbl">Config-only</div></div>
+    <div class="card"><div class="num">{{COUNT_DOCUMENTATION}}</div><div class="lbl">Documentation</div></div>
+    <div class="card"><div class="num">{{EXCLUDED_IDENTIFIERS_COUNT}}</div><div class="lbl">Code identifiers excluded</div></div>
+  </div>
+
+  <h2>Data Flow Inventory</h2>
+  <table>
+    <thead>
+      <tr><th>Endpoint</th><th>Protocol</th><th>Type</th><th>Direction</th><th>Usage</th><th>Occ.</th><th>Locations</th></tr>
+    </thead>
+    <tbody>
+      {{INVENTORY_ROWS}}
+    </tbody>
+  </table>
+
+  <h2>Data Direction Summary</h2>
+
+  <h3><span class="badge dir-out">Outbound</span> &nbsp;Where the app sends data</h3>
+  <table>
+    <thead><tr><th>Endpoint</th><th>Type</th><th>What is sent</th><th>Locations</th></tr></thead>
+    <tbody>{{DIRECTION_OUT_ROWS}}</tbody>
+  </table>
+
+  <h3><span class="badge dir-in">Inbound</span> &nbsp;Where the app receives data</h3>
+  <table>
+    <thead><tr><th>Endpoint</th><th>Type</th><th>What is received</th><th>Locations</th></tr></thead>
+    <tbody>{{DIRECTION_IN_ROWS}}</tbody>
+  </table>
+
+  <h3><span class="badge dir-both">Bidirectional</span> &nbsp;Send and receive</h3>
+  <table>
+    <thead><tr><th>Endpoint</th><th>Type</th><th>Data exchanged</th><th>Locations</th></tr></thead>
+    <tbody>{{DIRECTION_BOTH_ROWS}}</tbody>
+  </table>
+
+  <h3><span class="badge dir-none">No transfer</span> &nbsp;Referenced but no data moves</h3>
+  <table>
+    <thead><tr><th>Endpoint</th><th>Type</th><th>Note</th><th>Locations</th></tr></thead>
+    <tbody>{{DIRECTION_NONE_ROWS}}</tbody>
+  </table>
+
+  <h2>Endpoint Details</h2>
+  {{ENDPOINT_DETAIL_SECTIONS}}
+
+  <h2>Configuration-Only References</h2>
+  <p class="note">Endpoints defined in configuration or present in source, but not exercised by code.</p>
+  <table>
+    <thead><tr><th>Endpoint</th><th>Type</th><th>Config key</th><th>Locations</th></tr></thead>
+    <tbody>{{CONFIG_ONLY_ROWS}}</tbody>
+  </table>
+
+  <h2>Documentation References</h2>
+  <p class="note">References found only in comments, documentation, examples, or test fixtures.</p>
+  <table>
+    <thead><tr><th>Endpoint</th><th>Type</th><th>Context</th><th>Locations</th></tr></thead>
+    <tbody>{{DOCUMENTATION_ROWS}}</tbody>
+  </table>
+
+  <h2>Excluded Code Identifiers</h2>
+  <p class="note">{{EXCLUDED_IDENTIFIERS_COUNT}} package, namespace, and dependency names were matched by the domain pattern and excluded from the network inventory. These are code-structure identifiers (import/package/dependency coordinates), not network communication.</p>
+
+  <footer class="report">
+    Generated by Network Footprint on {{GENERATION_DATE}}. Automated static analysis of source and configuration files; ambiguous references warrant a human review. This report describes data flow and does not assign risk or compliance status.
+  </footer>
+
+</div>
+</body>
+</html>

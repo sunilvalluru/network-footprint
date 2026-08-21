@@ -1,0 +1,14 @@
+# settings.yaml - service configuration
+auth:
+  # Authentication provider (identity). Used by the login flow.
+  issuer: "https://acme.us.auth0.com"
+  jwksUri: "https://acme.us.auth0.com/.well-known/jwks.json"
+
+observability:
+  # Error tracking - config-only in this sample (not wired into code)
+  sentryDsn: "https://examplePublicKey@o0.ingest.sentry.io/0"
+
+storage:
+  # Generic cloud endpoint (no specific bucket id)
+  region: "us-east-2"
+  endpoint: "https://s3.us-east-2.amazonaws.com"

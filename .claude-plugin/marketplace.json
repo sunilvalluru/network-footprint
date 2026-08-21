@@ -1,0 +1,32 @@
+{
+  "name": "sunil-plugins",
+  "owner": {
+    "name": "sunil valluru",
+    "email": "sunil.reddy.valluru@gmail.com"
+  },
+  "metadata": {
+    "description": "Plugins by sunil valluru.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "network-footprint",
+      "source": "./",
+      "description": "Maps a codebase's network footprint: scans for external network references (URLs, DNS names, IP addresses, cloud and database endpoints), determines the direction data flows for each (IN, OUT, BOTH, or none), notes whether each is actively used or configuration-only, and generates descriptive markdown and HTML reports. Facts only - no risk scoring or compliance classification.",
+      "version": "1.0.0",
+      "author": {
+        "name": "sunil valluru",
+        "email": "sunil.reddy.valluru@gmail.com"
+      },
+      "category": "developer-tools",
+      "tags": [
+        "network-footprint",
+        "static-analysis",
+        "code-analysis",
+        "network",
+        "endpoints",
+        "external-references"
+      ]
+    }
+  ]
+}

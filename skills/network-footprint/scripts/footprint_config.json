@@ -1,0 +1,170 @@
+{
+  "version": "2.0.0",
+  "description": "Single configuration file for the Network Footprint scanner. Controls what is scanned and how external references are recognized and classified.",
+
+  "exclude_dirs": [
+    ".git", ".hg", ".svn", "node_modules", "bower_components",
+    "target", "build", "dist", "out", "bin", "obj",
+    ".venv", "venv", "env", "__pycache__", ".mypy_cache", ".pytest_cache",
+    ".idea", ".vscode", ".gradle", ".next", ".nuxt", ".cache",
+    "coverage", "vendor", "findings"
+  ],
+
+  "exclude_suffixes": [
+    ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".svg", ".webp", ".tiff",
+    ".pdf", ".zip", ".tar", ".gz", ".tgz", ".7z", ".rar",
+    ".jar", ".war", ".ear", ".class", ".so", ".o", ".a", ".dll", ".dylib",
+    ".exe", ".bin", ".dat", ".wasm",
+    ".woff", ".woff2", ".ttf", ".otf", ".eot",
+    ".mp3", ".mp4", ".mov", ".avi", ".mkv", ".wav",
+    ".md", ".markdown", ".rst",
+    ".lock", ".min.js", ".min.css", ".map"
+  ],
+
+  "max_file_size_kb": 4096,
+  "context_lines": 3,
+  "max_occurrences_per_endpoint": 25,
+
+  "comment_prefixes": ["//", "#", "*", "/*", "<!--", "--", ";", "\"\"\"", "'''"],
+
+  "config_suffixes": [
+    ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".config",
+    ".env", ".properties", ".xml", ".tf", ".tfvars", ".hcl", ".plist"
+  ],
+
+  "internal_hosts": [
+    "localhost", "127.0.0.1", "0.0.0.0", "::1", "host.docker.internal",
+    "example.com", "example.org", "example.net", "test", "invalid", "local"
+  ],
+
+  "code_identifier_prefixes": [
+    "com.", "org.", "net.", "io.", "edu.", "gov.", "java.", "javax.", "jakarta.",
+    "kotlin.", "kotlinx.", "scala.", "androidx.", "android.", "dagger.", "sun.",
+    "google.", "apache.", "springframework."
+  ],
+
+  "stream_schemes": [
+    "ws", "wss", "postgres", "postgresql", "mysql", "mariadb", "mongodb",
+    "mongodb+srv", "redis", "rediss", "amqp", "amqps", "mqtt", "mqtts",
+    "grpc", "grpcs", "tcp", "kafka", "nats"
+  ],
+
+  "protocol_names": {
+    "http": "HTTP", "https": "HTTPS",
+    "ws": "WebSocket", "wss": "WebSocket (TLS)",
+    "ftp": "FTP", "ftps": "FTP (TLS)", "sftp": "SFTP",
+    "ssh": "SSH", "git": "Git",
+    "postgres": "PostgreSQL", "postgresql": "PostgreSQL",
+    "mysql": "MySQL", "mariadb": "MariaDB",
+    "mongodb": "MongoDB", "mongodb+srv": "MongoDB",
+    "redis": "Redis", "rediss": "Redis (TLS)",
+    "amqp": "AMQP", "amqps": "AMQP (TLS)", "mqtt": "MQTT", "mqtts": "MQTT (TLS)",
+    "grpc": "gRPC", "grpcs": "gRPC (TLS)", "kafka": "Kafka", "nats": "NATS",
+    "smtp": "SMTP", "smtps": "SMTP (TLS)", "imap": "IMAP", "ldap": "LDAP", "ldaps": "LDAP (TLS)",
+    "s3": "S3", "gs": "GCS", "file": "File"
+  },
+
+  "direction_hints": {
+    "out": [
+      "post", "put", "patch", "send", "sendall", "sendto", "upload", "push",
+      "publish", "write", "insert", "produce", "emit", "submit", "export", "sync", "sink"
+    ],
+    "in": [
+      "get", "fetch", "download", "pull", "read", "recv", "receive", "consume",
+      "subscribe", "load", "list", "query", "select", "find", "retrieve", "poll", "clone"
+    ]
+  },
+
+  "max_usage_locations_per_key": 10,
+
+  "config_key_patterns": {
+    "description": "Per-language regex templates for finding where a config-bound URL's key is read in source code. {KEY}, {KEY_UPPER}, {SECTION} are substituted with the extracted config key.",
+    "javascript_typescript": {
+      "extensions": [".js", ".ts", ".jsx", ".tsx"],
+      "patterns": [
+        "\\.{KEY}\\b",
+        "[\"']({KEY})[\"']",
+        "config\\.get\\s*\\(\\s*[\"']([^\"']*{KEY}[^\"']*)[\"']",
+        "process\\.env\\.{KEY_UPPER}"
+      ]
+    },
+    "java": {
+      "extensions": [".java"],
+      "patterns": [
+        "\\.{KEY}\\b",
+        "@Value\\s*\\(\\s*\"\\$\\{[^}]*{KEY}[^}]*\\}\"\\s*\\)",
+        "getProperty\\s*\\(\\s*[\"'][^\"']*{KEY}[^\"']*[\"']\\s*\\)"
+      ]
+    },
+    "python": {
+      "extensions": [".py"],
+      "patterns": [
+        "\\.{KEY}\\b",
+        "os\\.environ\\[[\"'][^\"']*{KEY_UPPER}[^\"']*[\"']\\]",
+        "os\\.getenv\\s*\\([\"'][^\"']*{KEY_UPPER}[^\"']*[\"']\\)",
+        "config\\.{KEY}\\b",
+        "settings\\.{KEY}\\b",
+        "{KEY_UPPER}\\s*="
+      ]
+    },
+    "csharp": {
+      "extensions": [".cs"],
+      "patterns": [
+        "\\.{KEY}\\b",
+        "Configuration\\[[\"'][^\"']*{KEY}[^\"']*[\"']\\]",
+        "ConfigurationManager\\.AppSettings\\[[\"'][^\"']*{KEY}[^\"']*[\"']\\]"
+      ]
+    },
+    "go": {
+      "extensions": [".go"],
+      "patterns": [
+        "\\.{KEY}\\b",
+        "os\\.Getenv\\s*\\(\\s*[\"'][^\"']*{KEY_UPPER}[^\"']*[\"']\\s*\\)",
+        "viper\\.Get\\s*\\(\\s*[\"'][^\"']*{KEY}[^\"']*[\"']\\s*\\)"
+      ]
+    },
+    "ruby": {
+      "extensions": [".rb"],
+      "patterns": [
+        "\\.{KEY}\\b",
+        "ENV\\[[\"'][^\"']*{KEY_UPPER}[^\"']*[\"']\\]",
+        "ENV\\.fetch\\s*\\(\\s*[\"'][^\"']*{KEY_UPPER}[^\"']*[\"']\\s*\\)"
+      ]
+    },
+    "php": {
+      "extensions": [".php"],
+      "patterns": [
+        "->{KEY}\\b",
+        "\\$_ENV\\[[\"'][^\"']*{KEY_UPPER}[^\"']*[\"']\\]",
+        "getenv\\s*\\(\\s*[\"'][^\"']*{KEY_UPPER}[^\"']*[\"']\\s*\\)",
+        "config\\s*\\(\\s*[\"'][^\"']*{KEY}[^\"']*[\"']\\s*\\)"
+      ]
+    }
+  },
+
+  "http_operation_patterns": [
+    {"regex": "axios\\.(post|put|patch)\\s*\\(", "operation": "axios.post", "direction": "out"},
+    {"regex": "axios\\.(get|delete)\\s*\\(", "operation": "axios.get", "direction": "in"},
+    {"regex": "requests\\.(post|put|patch)\\s*\\(", "operation": "requests.post", "direction": "out"},
+    {"regex": "requests\\.get\\s*\\(", "operation": "requests.get", "direction": "in"},
+    {"regex": "RestTemplate\\.(postForEntity|postForObject|put|patchForObject)", "operation": "spring.RestTemplate.post", "direction": "out"},
+    {"regex": "RestTemplate\\.(getForEntity|getForObject)", "operation": "spring.RestTemplate.get", "direction": "in"},
+    {"regex": "WebClient\\.(post|put)\\b", "operation": "spring.WebClient.post", "direction": "out"},
+    {"regex": "WebClient\\.get\\b", "operation": "spring.WebClient.get", "direction": "in"},
+    {"regex": "http\\.(Post|Put|Patch)\\s*\\(", "operation": "go.http.post", "direction": "out"},
+    {"regex": "http\\.Get\\s*\\(", "operation": "go.http.get", "direction": "in"},
+    {"regex": "\\.(post|put|patch)\\s*\\(", "operation": "http.post", "direction": "out"},
+    {"regex": "\\.(get|delete)\\s*\\(", "operation": "http.get", "direction": "in"},
+    {"regex": "fetch\\s*\\(", "operation": "fetch", "direction": null},
+    {"regex": "XMLHttpRequest", "operation": "XMLHttpRequest", "direction": null}
+  ],
+
+  "known_tlds": [
+    "com", "org", "net", "io", "co", "ai", "dev", "app", "cloud", "sh", "gg",
+    "gov", "edu", "mil", "int", "info", "biz", "xyz", "tech", "online", "site",
+    "host", "space", "store", "run", "page", "link", "media", "email", "live",
+    "us", "uk", "ca", "de", "fr", "es", "it", "nl", "se", "no", "fi", "dk",
+    "ru", "cn", "jp", "kr", "in", "au", "br", "mx", "ch", "be", "at", "pl",
+    "cz", "ie", "nz", "sg", "hk", "tw", "za", "pt", "gr", "tr", "il", "ae", "eu"
+  ]
+}
