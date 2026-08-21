@@ -52,7 +52,7 @@ Requires **Python 3.6+** only — the scanner uses the standard library, no pip 
 Run the command and point it at a directory:
 
 ```
-/network-footprint
+/network-footprint:scan
 ```
 
 The agent locates the bundled scanner, runs it, reads the results, works out the
@@ -103,7 +103,7 @@ Two layers:
    codebase for every place that key is actually read, noting any HTTP operation
    detected nearby. Both write structured JSON. Neither judges anything — they locate
    and connect facts, they don't decide what those facts mean.
-2. **Agent (analysis).** The `/network-footprint` command / skill reads that JSON and
+2. **Agent (analysis).** The `/network-footprint:scan` command / skill reads that JSON and
    reasons about each endpoint — direction, usage status, endpoint type — then writes
    the reports. This reasoning depends on how each project actually uses each endpoint,
    which is why it is done by the model rather than hardcoded.
@@ -136,7 +136,7 @@ credentials — that is a separate job better served by dedicated tools
   plugin.json          # plugin manifest
   marketplace.json     # marketplace manifest
 commands/
-  network-footprint.md # the /network-footprint command
+  scan.md               # the /network-footprint:scan command
 skills/network-footprint/
   network-footprint.skill.md
   scripts/                         # Python stdlib only
