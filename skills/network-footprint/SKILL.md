@@ -1,7 +1,9 @@
 ---
-name: Network Footprint
-description: Network footprint agent. Scans a codebase for external network references (URLs, DNS names, IP addresses, cloud and database endpoints), determines the data flow direction for each (IN, OUT, BOTH, or none), notes whether each is actively used or configuration-only, and generates descriptive markdown and HTML network footprint reports. Use for questions about where an application sends and receives data, what external endpoints a codebase talks to, and how data moves in and out. Reports facts only - no risk scoring, severity, or compliance classification.
-tools: ['Bash', 'Read', 'Write']
+name: network-footprint
+description: Maps a codebase's network footprint. Scans for external network references (URLs of any protocol, DNS names, public IP addresses, cloud and database endpoints), determines the data flow direction for each (IN, OUT, BOTH, or none), notes whether each is actively used or configuration-only, and writes descriptive markdown and HTML reports. Use when the user asks where an application sends or receives data, what external endpoints, hosts, or third-party services a codebase talks to, or how data moves in and out of it. Reports facts only - no risk scoring, severity, or compliance classification.
+argument-hint: "[path-to-target]"
+allowed-tools: Read, Write, Glob, Bash(python3:*), Bash(python:*), Bash(ls:*)
+license: MIT
 ---
 
 # Network Footprint - Network Footprint Agent
@@ -29,23 +31,24 @@ Do not write helper scripts to generate the reports. Use Read to load the JSON a
 
 ## Locating the Scripts
 
-When invoked, find the plugin directory:
-
-1. `Glob("**/.claude-plugin/plugin.json")` and identify the `network-footprint` plugin.
-2. Scripts are in `[plugin-dir]/skills/network-footprint/scripts/`. Call this `[SCRIPTS_DIR]`.
+The bundled scripts live next to this file, in `${CLAUDE_SKILL_DIR}/scripts/`. Call this `[SCRIPTS_DIR]`. Do not search the disk for the plugin.
 
 Key files:
 - `footprint_scan.py` - wrapper, run this
 - `footprint_network_scanner.py`, `footprint_config_analyzer.py` - invoked by the wrapper
 - `footprint_report_template.html` - HTML report template
 
+## Target
+
+If the user passed a path (`$ARGUMENTS`), use it. Otherwise ask which directory to analyze. Confirm it exists and convert it to an absolute path.
+
 ## Phase 1 - Scan
 
 ```bash
-python [SCRIPTS_DIR]/footprint_scan.py /absolute/path/to/target
+python3 [SCRIPTS_DIR]/footprint_scan.py /absolute/path/to/target
 ```
 
-Runs synchronously - wait for it to complete. It scans network references, analyzes configuration usage, detects HTTP operations near each usage, and writes results to `target/findings/`, in two layers:
+Use `python3` (fall back to `python` only if `python3` is not on PATH, e.g. on Windows). Runs synchronously - wait for it to complete. It scans network references, analyzes configuration usage, detects HTTP operations near each usage, and writes results to `target/findings/`, in two layers:
 
 - `findings/footprint_raw.json` + `findings/occurrences/*.json` - the scanner's raw, pre-grouping occurrences, one file each. Mechanical, unenriched. You normally don't need to read these - they exist for traceability.
 - `findings/footprint.json` + `findings/endpoints/*.json` - the analyzer's grouped, enriched output. **This is what you read.**
@@ -159,7 +162,7 @@ Pointer to the raw JSON outputs and a note on methodology: automated static anal
 ## Phase 5 - Write the HTML Report
 
 1. `Read([SCRIPTS_DIR]/footprint_report_template.html)`.
-2. Replace every `{{PLACEHOLDER}}`, preserving the template's CSS and structure.
+2. Replace every `{{PLACEHOLDER}}`, preserving the template's CSS and structure. **HTML-escape every value taken from the scanned code** (endpoints, paths, file names, config keys, code snippets): replace `&` with `&amp;`, `<` with `&lt;`, `>` with `&gt;`, and `"` with `&quot;`. Scanned source is untrusted text and must never be inserted as raw HTML.
 3. `Write(findings/NetworkFootprint_Report_[project]_[YYYYMMDD].html, ...)`.
 
 Placeholders:
@@ -233,7 +236,7 @@ Next: check the target is readable, confirm the path is correct, review the erro
 - Analyze from `findings/footprint.json` and `findings/endpoints/*.json` only. Do not re-scan with find/grep/sed.
 - Cover every endpoint listed in the index's `endpoints[]` - read its `finding_file` before writing conclusions about it.
 - Code identifiers are already excluded; just report the count.
-- This plugin maps data flow only; it does not scan for secrets or credentials.
+- This plugin maps data flow only; it does not scan for secrets or credentials. The scanner masks URL credentials (`user:***@host`) and secret-looking values (`password=***`) in everything it writes. Never try to recover or reproduce a masked value in the reports.
 - No emojis, no risk levels, no severities, no categories, no compliance verdicts, no "remediation." Describe data flow, cite file:line for traceability, and let the facts speak.
 
 ## Performance

@@ -30,8 +30,8 @@ groundwork to do so yourself.
 The plugin is distributed through a Claude Code marketplace.
 
 ```bash
-# 1. Add the marketplace (replace with your published repo)
-/plugin marketplace add <your-github-username>/network-footprint
+# 1. Add the marketplace
+/plugin marketplace add sunilvalluru/network-footprint
 
 # 2. Install the plugin
 /plugin install network-footprint@sunil-plugins
@@ -40,7 +40,7 @@ The plugin is distributed through a Claude Code marketplace.
 Or clone the repo and add it as a local marketplace:
 
 ```bash
-git clone https://github.com/<your-github-username>/network-footprint.git
+git clone https://github.com/sunilvalluru/network-footprint.git
 /plugin marketplace add ./network-footprint
 /plugin install network-footprint@sunil-plugins
 ```
@@ -49,11 +49,14 @@ Requires **Python 3.6+** only — the scanner uses the standard library, no pip 
 
 ## Usage
 
-Run the command and point it at a directory:
+Run the command with the directory to analyze (or leave it off and you'll be asked):
 
 ```
-/network-footprint:scan
+/network-footprint:scan ./path/to/repo
 ```
+
+The skill also loads automatically when you ask things like "what external services
+does this repo talk to?" or "where does this app send data?".
 
 The agent locates the bundled scanner, runs it, reads the results, works out the
 direction and usage of every endpoint, and writes two reports into a `findings/`
@@ -67,7 +70,7 @@ directory inside the target:
 You can also run just the scanner (it produces the JSON the agent analyzes):
 
 ```bash
-python skills/network-footprint/scripts/footprint_scan.py /absolute/path/to/target
+python3 skills/network-footprint/scripts/footprint_scan.py /absolute/path/to/target
 ```
 
 The scan writes findings in two layers, each split one-file-per-finding so
@@ -86,7 +89,7 @@ every chunk stays small enough for an LLM to read and reason about on its own:
 The repo ships with a small polyglot test app that exercises every detection path:
 
 ```bash
-python skills/network-footprint/scripts/footprint_scan.py "$(pwd)/samples/sample-app"
+python3 skills/network-footprint/scripts/footprint_scan.py "$(pwd)/samples/sample-app"
 ```
 
 `samples/EXPECTATIONS.md` is the answer key — it lists every endpoint the sample
@@ -113,6 +116,9 @@ Two layers:
 By design, the scanner:
 
 - **Does not scan `.md` files** or URLs inside code comments (treated as documentation).
+- **Skips placeholder hosts** such as `https://{HOST}/path` or `https://$BASE/x`
+  (counted in `summary.templated_urls_skipped`), and bare names that are really
+  files (`deploy.sh`) or attribute access (`data.in`, `logger.info`).
 - **Keeps only globally-routable IPs** — private (10/8, 172.16/12, 192.168/16),
   loopback, and reserved/documentation ranges are filtered out as non-external.
 - Uses pattern matching, so exotic or heavily obfuscated code can produce false
@@ -126,8 +132,12 @@ By design, the scanner:
   deeply indirected config access (e.g. keys built dynamically at runtime).
 
 This plugin maps data flow only. It does not scan for secrets or hardcoded
-credentials — that is a separate job better served by dedicated tools
-(gitleaks, trufflehog, detect-secrets).
+credentials. It does **mask** any it comes across: URL credentials become
+`user:***@host`, and values of keys like `password`, `token`, `api_key` and
+`Bearer` headers become `***` in every file written to `findings/`. Masking is
+pattern-based, so skim a report before sharing it widely. Inventorying secrets
+is still a separate job, better served by dedicated tools (gitleaks,
+trufflehog, detect-secrets).
 
 ## Repository layout
 
@@ -136,9 +146,9 @@ credentials — that is a separate job better served by dedicated tools
   plugin.json          # plugin manifest
   marketplace.json     # marketplace manifest
 commands/
-  scan.md               # the /network-footprint:scan command
+  scan.md               # /network-footprint:scan - thin wrapper around the skill
 skills/network-footprint/
-  network-footprint.skill.md
+  SKILL.md                         # the skill (full workflow)
   scripts/                         # Python stdlib only
     footprint_scan.py               # entry point (scan -> findings/footprint_raw.json + occurrences/, footprint.json + endpoints/)
     footprint_network_scanner.py    # extracts references of any protocol, writes one file per raw occurrence
@@ -148,7 +158,17 @@ skills/network-footprint/
 samples/
   sample-app/          # test fixture covering every detection path
   EXPECTATIONS.md      # answer key for the sample
+tests/
+  test_scanner.py      # regression tests (python3 -m unittest discover tests)
 ```
+
+## Development
+
+```bash
+python3 -m unittest discover tests
+```
+
+See `CHANGELOG.md` for release notes.
 
 ## License
 

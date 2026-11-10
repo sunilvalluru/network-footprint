@@ -7,7 +7,7 @@ its report to the table below.
 Run:
 
 ```bash
-python skills/network-footprint/scripts/footprint_scan.py "$(pwd)/samples/sample-app"
+python3 skills/network-footprint/scripts/footprint_scan.py "$(pwd)/samples/sample-app"
 ```
 
 This writes `samples/sample-app/findings/footprint_raw.json` + `occurrences/*.json` (the
@@ -77,8 +77,12 @@ This scanner makes some deliberate choices - the sample is built around them:
 - **Any protocol is captured**, not just HTTP. `wss://`, `postgres://`, `redis://`,
   `ssh`, `git@`, etc. are all recognized. So `wss://stream.acme-realtime.com` is a
   first-class endpoint, and `postgres://...@52.20.16.7` is captured with its host IP.
-- **No secrets scanning.** The `user:pass` in the Postgres URL is captured only as part
-  of the endpoint (host + scheme); the plugin does not detect or report credentials.
+- **No secrets scanning, but credentials are masked.** The `user:pass` in the Postgres
+  URL is written as `app_user:***@52.20.16.7` everywhere in `findings/`, and the Sentry
+  DSN key as `https://***@o0.ingest.sentry.io/0`. The real values must never appear in
+  the JSON or the reports.
+- **Template placeholders stay in paths.** `api.acme-service.com/v1/users/${id}` and
+  `registry.npmjs.org/${pkg}/latest` are captured with the full path.
 - **Config-bound URLs get traced to their reader in code.** `api.acme-service.com`'s
   `/v1/upload` occurrence in `config/config.json:3` is bound to config key
   `service.uploadUrl`; the analyzer searches the codebase and finds it read at

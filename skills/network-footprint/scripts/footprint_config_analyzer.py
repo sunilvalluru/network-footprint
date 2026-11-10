@@ -34,6 +34,9 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+from footprint_network_scanner import redact  # noqa: E402
+
 DEFAULT_CONFIG = Path(os.getenv("FOOTPRINT_CONFIG", HERE / "footprint_config.json"))
 
 
@@ -122,6 +125,15 @@ def _usage(occurrences, cfg):
     if any(_file_is_config(occ["file"], cfg) and not occ["in_comment"] for occ in occurrences):
         return "config"
     return "documentation"
+
+
+def _needle(ref, host):
+    """String to look for in the config file when working out which key a
+    URL is bound to. The stored raw match may have masked credentials
+    (user:***@host), which won't appear in the file, so fall back to the
+    host in that case."""
+    raw = ref.get("raw") or ""
+    return raw if raw and "***" not in raw else host
 
 
 def _slugify(text):
@@ -314,10 +326,11 @@ def _search_key_usage(source_files, config_info, cfg, ctx_n):
             for m in regex.finditer(text):
                 line_num = text.count("\n", 0, m.start()) + 1
                 window, center = _context_window(lines, line_num, ctx_n)
+                line_text = lines[line_num - 1].strip() if line_num <= len(lines) else ""
                 results.append({
                     "file": rel, "line": line_num,
-                    "line_text": lines[line_num - 1].strip() if line_num <= len(lines) else "",
-                    "context": window, "ctx_center": center,
+                    "line_text": redact(line_text),
+                    "context": [redact(ln) for ln in window], "ctx_center": center,
                     "detected_operation": _detect_operation(window, cfg),
                 })
                 if len(results) >= cap:
@@ -448,7 +461,7 @@ def build_and_write_findings(findings_dir, raw_index, cfg, meta=None):
             if not r["in_comment"] and target and _file_is_config(r["file"], cfg):
                 abs_path = os.path.join(target, r["file"])
                 if os.path.isfile(abs_path):
-                    config_info = _extract_config_key(abs_path, r["line"], r.get("raw") or host, lines_cache)
+                    config_info = _extract_config_key(abs_path, r["line"], _needle(r, host), lines_cache)
                     if config_info:
                         occ["config_key"] = config_info["full_key"]
                         usages = _search_key_usage(source_files(), config_info, cfg, ctx_n)
@@ -518,6 +531,7 @@ def build_and_write_findings(findings_dir, raw_index, cfg, meta=None):
             "schemes": schemes_seen,
             "public_ips": sorted({e["host"] for e in index_endpoints if e["is_ip"]}),
             "excluded_identifiers_count": len(excluded),
+            "templated_urls_skipped": raw_index.get("templated_urls_skipped", 0),
         },
         "endpoints": index_endpoints,
         "excluded_identifiers": excluded[:200],
@@ -574,7 +588,7 @@ def build_report(refs, files_scanned, excluded, cfg, meta=None):
             if not r["in_comment"] and target and _file_is_config(r["file"], cfg):
                 abs_path = os.path.join(target, r["file"])
                 if os.path.isfile(abs_path):
-                    config_info = _extract_config_key(abs_path, r["line"], r.get("raw") or host, lines_cache)
+                    config_info = _extract_config_key(abs_path, r["line"], _needle(r, host), lines_cache)
                     if config_info:
                         occ["config_key"] = config_info["full_key"]
                         usages = _search_key_usage(source_files(), config_info, cfg, ctx_n)

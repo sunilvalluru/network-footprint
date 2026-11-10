@@ -1,5 +1,5 @@
 {
-  "version": "2.0.0",
+  "version": "1.1.0",
   "description": "Single configuration file for the Network Footprint scanner. Controls what is scanned and how external references are recognized and classified.",
 
   "exclude_dirs": [
@@ -157,6 +157,11 @@
     {"regex": "\\.(get|delete)\\s*\\(", "operation": "http.get", "direction": "in"},
     {"regex": "fetch\\s*\\(", "operation": "fetch", "direction": null},
     {"regex": "XMLHttpRequest", "operation": "XMLHttpRequest", "direction": null}
+  ],
+
+  "file_extension_tlds": [
+    "sh", "in", "py", "rs", "md", "pl", "ps", "js", "ts", "cs", "go", "rb",
+    "so", "zip", "mov", "bak", "tmp", "cfg", "env", "app", "run", "page", "info"
   ],
 
   "known_tlds": [

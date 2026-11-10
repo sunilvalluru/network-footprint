@@ -1,10 +1,19 @@
 {
     "name": "network-footprint",
     "description": "Network Footprint - maps every external network reference a codebase touches. Scans for every outbound and inbound network reference (HTTP/HTTPS URLs, DNS names, IP addresses, cloud and database endpoints) and maps how data moves in and out of the application. For each external endpoint it determines the direction data flows (IN, OUT, BOTH, or none) and whether the reference is actively used in code or configuration-only. Generates a descriptive markdown and HTML report: an inventory of external endpoints, their direction, usage status, and where they appear in the source. No risk scoring or compliance classification - it reports the facts of what connects where.",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "license": "MIT",
     "author": {
         "name": "sunil valluru",
         "email": "sunil.reddy.valluru@gmail.com"
-    }
+    },
+    "homepage": "https://github.com/sunilvalluru/network-footprint",
+    "repository": "https://github.com/sunilvalluru/network-footprint",
+    "keywords": [
+        "network",
+        "endpoints",
+        "data-flow",
+        "static-analysis",
+        "external-references"
+    ]
 }
