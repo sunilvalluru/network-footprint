@@ -29,7 +29,12 @@ HERE = Path(__file__).resolve().parent
 DEFAULT_CONFIG = Path(os.getenv("FOOTPRINT_CONFIG", HERE / "footprint_config.json"))
 
 # scheme://rest   (scheme = letter followed by letters/digits/+/-/.)
-URL_RE = re.compile(r"([a-zA-Z][a-zA-Z0-9+.\-]*)://([^\s\"'`<>)\]}]+)")
+# The rest may contain template placeholders such as ${id} or {base}, so a
+# path like /v1/users/${id}/profile is captured whole instead of being cut
+# at the first "}". Balanced (...) is kept too (/wiki/Foo_(bar)).
+URL_RE = re.compile(
+    r"([a-zA-Z][a-zA-Z0-9+.\-]*)://((?:\$?\{[^{}\s\"'`]*\}|\([^()\s\"'`]*\)|[^\s\"'`<>()\]{}])+)"
+)
 # git@host:path
 GIT_SSH_RE = re.compile(r"\b([a-zA-Z0-9_.\-]+)@([a-zA-Z0-9.\-]+):([~/\w.\-]+)")
 # 1.2.3.4 with optional :port
@@ -39,6 +44,97 @@ DOMAIN_RE = re.compile(
     r"\b((?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,24})\b"
 )
 _TRAILING = ".,;:!?)'\"]}>`"
+# A host is only reported when it is a literal name or IP. Hosts built from
+# placeholders (https://{HOST}/x, https://$host/x) are not real endpoints.
+VALID_HOST_RE = re.compile(r"^[a-z0-9_](?:[a-z0-9_\-.]*[a-z0-9])?$")
+
+# Source files where a bare domain only counts if it sits inside a string
+# literal. In these languages `data.in` or `logger.info` outside quotes is
+# code, never a hostname. Config files, shell scripts, Dockerfiles, etc. are
+# not in this list, because they legitimately carry unquoted hostnames.
+QUOTED_DOMAIN_EXTS = (
+    ".py", ".js", ".mjs", ".cjs", ".ts", ".jsx", ".tsx", ".java", ".kt",
+    ".kts", ".scala", ".groovy", ".go", ".rb", ".php", ".cs", ".swift",
+    ".rs", ".c", ".cc", ".cpp", ".h", ".hpp", ".m", ".mm", ".dart", ".lua",
+)
+
+# --- Credential redaction -------------------------------------------------
+# The plugin maps data flow, it does not inventory secrets - but URLs and the
+# lines around them often carry credentials. Everything the scanner writes
+# (raw match, path, context lines) is passed through redact() first so no
+# password or token ends up in findings/ or in the generated reports.
+MASK = "***"
+# scheme://user:pass@  or  scheme://token@
+_USERINFO_RE = re.compile(
+    r"(?P<pre>[a-zA-Z][a-zA-Z0-9+.\-]*://)(?P<user>[^\s/@:\"'`]+)(?::(?P<pw>[^\s/@\"'`]*))?@"
+)
+_SECRET_KEYS = (
+    r"password|passwd|pwd|pass|secret|client[_\-]?secret|token|access[_\-]?token|"
+    r"refresh[_\-]?token|auth[_\-]?token|api[_\-]?key|apikey|access[_\-]?key|"
+    r"secret[_\-]?key|private[_\-]?key|signature|sig|credentials?"
+)
+# key = "value" / key: 'value' / "key": "value"  (quoted literal - any file)
+_SECRET_QUOTED_RE = re.compile(
+    r"(?i)(?P<k>[\w.\-]*(?:" + _SECRET_KEYS + r")[\"']?\s*[:=]\s*)(?P<q>[\"'])(?P<v>[^\"'\s]+)(?P=q)"
+)
+# key=value with no quotes (config files, .env, query strings)
+_SECRET_BARE_RE = re.compile(
+    r"(?i)(?P<k>(?:^|[\s?&;,{])[\w.\-]*(?:" + _SECRET_KEYS + r")\s*[:=]\s*)(?P<v>[^\s\"'&;,#}]+)"
+)
+# ?token=...&api_key=... inside URLs (any file)
+_SECRET_QUERY_RE = re.compile(
+    r"(?i)(?P<k>[?&][\w.\-]*(?:" + _SECRET_KEYS + r")=)(?P<v>[^&#\s\"'`]+)"
+)
+_BEARER_RE = re.compile(r"(?i)\b(?P<k>bearer\s+|basic\s+)(?P<v>[A-Za-z0-9._~+/\-]{8,}=*)")
+
+
+def _mask_userinfo(m):
+    if m.group("pw") is not None:
+        return f"{m.group('pre')}{m.group('user')}:{MASK}@"
+    # A single userinfo component (Sentry DSN key, token@host) is usually
+    # the secret itself, so mask it entirely.
+    return f"{m.group('pre')}{MASK}@"
+
+
+def redact(text, bare_values=False):
+    """Mask credentials in a line of text. bare_values=True also masks
+    unquoted `password=hunter2` style values, which is right for config
+    files but would mangle code like `token = get_token()`."""
+    if not text:
+        return text
+    text = _USERINFO_RE.sub(_mask_userinfo, text)
+    text = _SECRET_QUERY_RE.sub(lambda m: m.group("k") + MASK, text)
+    text = _BEARER_RE.sub(lambda m: m.group("k") + MASK, text)
+    text = _SECRET_QUOTED_RE.sub(
+        lambda m: m.group("k") + m.group("q") + MASK + m.group("q"), text)
+    if bare_values:
+        text = _SECRET_BARE_RE.sub(
+            lambda m: m.group("k") + (m.group("v") if m.group("v") == MASK else MASK), text)
+    return text
+
+
+def _strip_trailing(s):
+    """Strip trailing punctuation, but keep a closing ) or } that balances
+    an opening one inside the URL (e.g. /users/${id}, /wiki/Foo_(bar))."""
+    while s and s[-1] in _TRAILING:
+        ch = s[-1]
+        if ch == "}" and s.count("{") >= s.count("}"):
+            break
+        if ch == ")" and s.count("(") >= s.count(")"):
+            break
+        s = s[:-1]
+    return s
+
+
+def _inside_string_literal(line, pos):
+    """True if position pos on this line falls inside a '...', "..." or
+    `...` literal (simple per-line quote counting; good enough to tell a
+    quoted hostname from attribute access like data.in)."""
+    before = line[:pos]
+    for q in ("\"", "'", "`"):
+        if (before.count(q) - before.count("\\" + q)) % 2 == 1:
+            return True
+    return False
 
 
 def load_config(path=DEFAULT_CONFIG):
@@ -63,7 +159,7 @@ def _is_global_ip(text):
 
 def parse_authority(rest):
     """Split 'user:pass@host:port/path?x' into (host, port, path)."""
-    rest = rest.rstrip(_TRAILING)
+    rest = _strip_trailing(rest)
     cut = len(rest)
     for ch in ("/", "?", "#"):
         i = rest.find(ch)
@@ -93,6 +189,17 @@ def parse_authority(rest):
 def is_comment(line, cfg):
     stripped = line.lstrip()
     return any(stripped.startswith(p) for p in cfg["comment_prefixes"])
+
+
+def collect_basenames(target, cfg):
+    """Lower-cased file names present in the tree, so a bare "domain" that is
+    really a file name in this repo (deploy.sh, setup.py) can be dropped."""
+    exclude_dirs = set(cfg["exclude_dirs"])
+    names = set()
+    for _root, dirs, files in os.walk(target):
+        dirs[:] = [d for d in dirs if d not in exclude_dirs]
+        names.update(n.lower() for n in files)
+    return names
 
 
 def iter_text_files(target, cfg):
@@ -140,13 +247,23 @@ def iter_references(target, cfg, stats):
     known_tlds = set(cfg["known_tlds"])
     internal = set(h.lower() for h in cfg["internal_hosts"])
     code_prefixes = tuple(cfg["code_identifier_prefixes"])
+    file_ext_tlds = set(cfg.get("file_extension_tlds", []))
+    config_suffixes = tuple(cfg.get("config_suffixes", []))
+    basenames = collect_basenames(target, cfg)
     stats.setdefault("files_scanned", 0)
     stats.setdefault("excluded", set())
+    stats.setdefault("templated_skipped", 0)
 
     for fp, text in iter_text_files(target, cfg):
         stats["files_scanned"] += 1
         rel = os.path.relpath(fp, target)
+        low_rel = rel.lower()
+        is_config = low_rel.endswith(config_suffixes) or os.path.basename(low_rel).startswith(".env")
+        needs_quotes = low_rel.endswith(QUOTED_DOMAIN_EXTS)
         lines = text.splitlines()
+        # Redact once per file; context windows are cut from this copy so
+        # no credential is ever written to disk.
+        safe_lines = [redact(ln, bare_values=is_config) for ln in lines]
         for idx, line in enumerate(lines):
             in_comment = is_comment(line, cfg)
             claimed = []  # (start, end) spans already taken by an earlier match
@@ -156,7 +273,7 @@ def iter_references(target, cfg, stats):
 
             def make(match_start, match_end, ref):
                 claimed.append((match_start, match_end))
-                window, center = _context(lines, idx, ctx_n)
+                window, center = _context(safe_lines, idx, ctx_n)
                 ref.update({
                     "file": rel, "line": idx + 1,
                     "in_comment": in_comment,
@@ -173,10 +290,17 @@ def iter_references(target, cfg, stats):
                 host_is_ip = _is_ip(host)
                 if host_is_ip and not _is_global_ip(host):
                     continue
+                if not host_is_ip and not VALID_HOST_RE.match(host):
+                    # Placeholder host (https://{HOST}/x, $BASE_URL...) -
+                    # not a concrete endpoint. Claim the span so the bare
+                    # domain pass doesn't pick fragments out of it.
+                    claimed.append((m.start(), m.end()))
+                    stats["templated_skipped"] += 1
+                    continue
                 yield make(m.start(), m.end(), {
-                    "raw": m.group(0).rstrip(_TRAILING),
+                    "raw": redact(_strip_trailing(m.group(0))),
                     "kind": "url", "scheme": scheme,
-                    "host": host, "port": port, "path": path or "",
+                    "host": host, "port": port, "path": redact(path or ""),
                     "is_ip": host_is_ip,
                 })
 
@@ -230,6 +354,17 @@ def iter_references(target, cfg, stats):
                 if not tail_label.islower():
                     continue
                 if re.match(r"\s*\(", line[m.end():]):
+                    continue
+                # In programming-language source, a hostname is always a
+                # string; unquoted matches are attribute access (data.in).
+                if needs_quotes and not in_comment and not _inside_string_literal(line, m.start()):
+                    continue
+                # A name that is a file in this repo, or a two-label
+                # name.ext whose "TLD" is a common file extension
+                # (deploy.sh, notes.in), is a file reference, not a host.
+                if host in basenames:
+                    continue
+                if tld in file_ext_tlds and host.count(".") == 1:
                     continue
                 yield make(m.start(), m.end(), {
                     "raw": host, "kind": "domain", "scheme": None,
@@ -290,6 +425,7 @@ def scan_and_write(target, cfg, findings_dir):
         "files_scanned": stats["files_scanned"],
         "total_occurrences": len(index_refs),
         "excluded_identifiers": sorted(stats["excluded"]),
+        "templated_urls_skipped": stats.get("templated_skipped", 0),
         "references": index_refs,
     }
 

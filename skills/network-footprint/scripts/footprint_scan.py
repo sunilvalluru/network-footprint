@@ -72,7 +72,7 @@ def main(argv):
         meta = {
             "target": target,
             "scanned_at": datetime.now().isoformat(timespec="seconds"),
-            "scanner_version": cfg.get("version", "2.0.0"),
+            "scanner_version": cfg.get("version", "unknown"),
             "duration_seconds": round(time.time() - start, 3),
         }
         raw_path = os.path.join(findings_dir, "footprint_raw.json")
