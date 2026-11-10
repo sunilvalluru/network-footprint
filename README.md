@@ -27,6 +27,14 @@ groundwork to do so yourself.
 
 ## Install
 
+> **Get the latest version from this repo's marketplace.** The listing in Claude's
+> plugin directory is on **1.0.0**. Newer versions (currently **1.1.0**, see
+> [CHANGELOG.md](CHANGELOG.md)) bundle the Python scanner, which the directory
+> doesn't currently accept from unverified publishers, so they're available only
+> through the marketplace below. 1.1.0 masks credentials in reports and fixes
+> skill loading. If you installed from the directory, add this marketplace and
+> install from it to upgrade.
+
 The plugin is distributed through a Claude Code marketplace.
 
 ```bash
